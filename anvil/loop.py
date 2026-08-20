@@ -19,6 +19,7 @@ and is what turns a single 0%→100% jump into a readable rising curve.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from gauntlet import run_suite
@@ -45,8 +46,16 @@ class ImprovementLoop:
     memory_budget: int = 2000
     max_iterations: int = 6
 
-    def run(self, iterations: int = 4) -> LoopResult:
-        """Run ``iterations`` cycles and return the per-iteration report."""
+    def run(
+        self,
+        iterations: int = 4,
+        on_iteration: Callable[[IterationReport], None] | None = None,
+    ) -> LoopResult:
+        """Run ``iterations`` cycles and return the per-iteration report.
+
+        ``on_iteration`` is invoked with each :class:`IterationReport` as soon as
+        that cycle completes — a progress hook the CLI uses to animate the curve.
+        """
         tasks = [sc.task for sc in self.scenarios]
         by_id = {sc.task.id: sc for sc in self.scenarios}
         inner = LearningStubProvider(self.scenarios)
@@ -70,17 +79,18 @@ class ImprovementLoop:
             summary = self._observe(suite)
             passed = sum(1 for tr in suite.task_results if tr.num_passed == tr.k)
             added = self._reflect(suite, by_id, learned)
-            reports.append(
-                IterationReport(
-                    iteration=i,
-                    passed=passed,
-                    total=len(tasks),
-                    tokens=summary.usage.total_tokens,
-                    cost_usd=summary.cost_usd,
-                    lessons_in_memory=len(self.memory),
-                    lessons_added=added,
-                )
+            report = IterationReport(
+                iteration=i,
+                passed=passed,
+                total=len(tasks),
+                tokens=summary.usage.total_tokens,
+                cost_usd=summary.cost_usd,
+                lessons_in_memory=len(self.memory),
+                lessons_added=added,
             )
+            reports.append(report)
+            if on_iteration is not None:
+                on_iteration(report)
 
         return LoopResult(reports=reports, final_memory_size=len(self.memory))
 

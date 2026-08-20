@@ -29,6 +29,10 @@ reading a path it never listed, guessing instead of asking, writing without
 reading current state). With empty memory the agent trips every one. Then watch
 it teach itself:
 
+![anvil demo — the self-improvement curve climbing from 0% to 100%](demo/anvil.gif)
+
+<sub>Recorded with [VHS](https://github.com/charmbracelet/vhs) — regenerate with `vhs demo/anvil.tape`.</sub>
+
 ```
 $ anvil demo
 

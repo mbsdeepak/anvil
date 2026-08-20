@@ -13,19 +13,28 @@ from anvil.types import IterationReport
 _BAR_WIDTH = 24
 
 
+def render_row(r: IterationReport) -> str:
+    """One iteration as a single bar-chart line."""
+    filled = round(r.pass_rate * _BAR_WIDTH)
+    bar = "█" * filled + "·" * (_BAR_WIDTH - filled)
+    return (
+        f"  iter {r.iteration}  [{bar}] {r.passed}/{r.total}  "
+        f"({r.pass_rate * 100:3.0f}%)   memory={r.lessons_in_memory} "
+        f"(+{r.lessons_added})   tokens={r.tokens}"
+    )
+
+
+def render_header() -> str:
+    """The curve's title line."""
+    return "Self-improvement curve — tasks solved per iteration:"
+
+
 def render_curve(reports: list[IterationReport]) -> str:
     """A compact ASCII bar chart of tasks-solved per iteration."""
     if not reports:
         return "(no iterations)"
-    lines = ["Self-improvement curve — tasks solved per iteration:", ""]
-    for r in reports:
-        filled = round(r.pass_rate * _BAR_WIDTH)
-        bar = "█" * filled + "·" * (_BAR_WIDTH - filled)
-        lines.append(
-            f"  iter {r.iteration}  [{bar}] {r.passed}/{r.total}  "
-            f"({r.pass_rate * 100:3.0f}%)   memory={r.lessons_in_memory} "
-            f"(+{r.lessons_added})   tokens={r.tokens}"
-        )
+    lines = [render_header(), ""]
+    lines.extend(render_row(r) for r in reports)
     first, last = reports[0], reports[-1]
     lines.append("")
     lines.append(
