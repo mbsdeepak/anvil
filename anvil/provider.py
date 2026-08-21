@@ -27,17 +27,38 @@ from the count of assistant messages so far) and never from internal cursors.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
 from gauntlet.providers import AssistantTurn
 from gauntlet.types import ToolCall, Usage
+from loom import estimate_tokens
 
 from anvil.memory import LessonStore
 from anvil.scenarios import Scenario
 
 
-def _turn_from_step(step: dict[str, Any], in_tokens: int, out_tokens: int) -> AssistantTurn:
+def _usage_for(system: str, messages: list[dict[str, Any]], step: dict[str, Any]) -> Usage:
+    """Derive token usage from the actual content, not a flat per-step constant.
+
+    Input tokens track the real context the model is fed — including the system
+    prompt, which *grows* as memory accrues lessons — so the numbers rise
+    organically across iterations rather than landing on round multiples. The
+    estimator is ``loom``'s (chars / 4), the same rough heuristic a real
+    tokenizer approximates.
+    """
+    context = (system or "") + "".join(str(m.get("content", "")) for m in messages)
+    produced = step.get("text", "") + "".join(
+        json.dumps(c.get("arguments", {})) for c in step.get("tool_calls", [])
+    )
+    return Usage(
+        input_tokens=estimate_tokens(context),
+        output_tokens=max(1, estimate_tokens(produced)),
+    )
+
+
+def _turn_from_step(step: dict[str, Any], usage: Usage) -> AssistantTurn:
     """Build a normalized :class:`AssistantTurn` from a scenario step dict."""
     calls = tuple(
         ToolCall(id=c["id"], name=c["name"], arguments=dict(c.get("arguments", {})))
@@ -48,7 +69,7 @@ def _turn_from_step(step: dict[str, Any], in_tokens: int, out_tokens: int) -> As
         text=step.get("text", ""),
         tool_calls=calls,
         stop_reason=stop,
-        usage=Usage(input_tokens=in_tokens, output_tokens=out_tokens),
+        usage=usage,
         content_blocks=None,
     )
 
@@ -57,16 +78,16 @@ def _turn_from_step(step: dict[str, Any], in_tokens: int, out_tokens: int) -> As
 class LearningStubProvider:
     """A deterministic offline model whose behavior improves with its context.
 
-    Given the scenario suite, it looks up the scenario by the task prompt
-    (``messages[0]``), decides whether that scenario's ``cue`` is present in the
-    system prompt, and replays the matching (naive vs improved) trajectory step
-    for the current turn. No randomness, no network, no state between calls.
+    For the task at hand (identified by ``messages[0]``) it counts how many of
+    the scenario's cues are present in the system prompt — its *learning stage* —
+    and replays the playbook for that stage. With no lessons it trips the first
+    pitfall; each learned cue advances it one stage until it reaches the fully
+    correct playbook. No randomness, no network, no state between calls (the
+    runner reuses one instance across every attempt and task).
     """
 
     scenarios: list[Scenario]
     name: str = "learning-stub"
-    per_step_input_tokens: int = 120
-    per_step_output_tokens: int = 30
     _by_prompt: dict[str, Scenario] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -87,15 +108,15 @@ class LearningStubProvider:
                 stop_reason="end_turn",
                 usage=Usage(),
             )
-        improved = scenario.cue in (system or "")
-        steps = scenario.improved_steps if improved else scenario.naive_steps
+        stage = sum(1 for cue in scenario.cues if cue in (system or ""))
+        stage = min(stage, len(scenario.cues))
+        steps = scenario.playbooks[stage]
         turn_index = sum(1 for m in messages if m.get("role") == "assistant")
         if turn_index >= len(steps):
             # Playbook exhausted — end cleanly rather than loop.
             return AssistantTurn(text="", tool_calls=(), stop_reason="end_turn", usage=Usage())
-        return _turn_from_step(
-            steps[turn_index], self.per_step_input_tokens, self.per_step_output_tokens
-        )
+        step = steps[turn_index]
+        return _turn_from_step(step, _usage_for(system, messages, step))
 
 
 @dataclass

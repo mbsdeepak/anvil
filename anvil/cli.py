@@ -18,8 +18,8 @@ def main(argv: list[str] | None = None) -> int:
     demo.add_argument(
         "--lessons-per-iteration",
         type=int,
-        default=2,
-        help="How many failing tasks to reflect on each cycle.",
+        default=None,
+        help="Cap how many failing tasks to reflect on each cycle (default: all of them).",
     )
     demo.add_argument(
         "--html",

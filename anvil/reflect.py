@@ -48,15 +48,24 @@ class Reflector:
         return Lesson(task_id=task.id, text=text, evidence=tuple(evidence))
 
     def _gather(self, trajectory: Trajectory, grade: Grade) -> list[str]:
-        """Collect tool errors and failing grader reasons, de-duplicated."""
+        """Collect tool errors plus the *first* unmet grader requirement.
+
+        Taking only the first failing grader reason models fixing one blocker at
+        a time: a task with several independent pitfalls surfaces the next one
+        only after the current fix lands, so each reflection learns exactly one
+        new thing and multi-pitfall tasks genuinely take multiple iterations.
+        """
         raw: list[str] = []
         for turn in trajectory.turns:
             for result in turn.tool_results:
                 if result.is_error:
                     raw.append(f"a tool call failed: {result.content}")
-        for reason in grade.reasons:
-            if any(marker in reason for marker in _FAILURE_MARKERS):
-                raw.append(f"grader feedback: {reason}")
+        first_failure = next(
+            (r for r in grade.reasons if any(m in r for m in _FAILURE_MARKERS)),
+            None,
+        )
+        if first_failure is not None:
+            raw.append(f"grader feedback: {first_failure}")
 
         seen: set[str] = set()
         unique: list[str] = []

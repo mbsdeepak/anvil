@@ -41,9 +41,9 @@ class ImprovementLoop:
     reflector: Reflector = field(default_factory=Reflector)
     model: str = "learning-stub"
     k: int = 1
-    lessons_per_iteration: int = 2
-    recall_k: int = 8
-    memory_budget: int = 2000
+    lessons_per_iteration: int | None = None  # None = reflect on every failure
+    recall_k: int = 12
+    memory_budget: int = 4000
     max_iterations: int = 6
 
     def run(
@@ -59,7 +59,6 @@ class ImprovementLoop:
         tasks = [sc.task for sc in self.scenarios]
         by_id = {sc.task.id: sc for sc in self.scenarios}
         inner = LearningStubProvider(self.scenarios)
-        learned: set[str] = set()
         reports: list[IterationReport] = []
 
         for i in range(iterations):
@@ -78,7 +77,7 @@ class ImprovementLoop:
             )
             summary = self._observe(suite)
             passed = sum(1 for tr in suite.task_results if tr.num_passed == tr.k)
-            added = self._reflect(suite, by_id, learned)
+            added = self._reflect(suite, by_id)
             report = IterationReport(
                 iteration=i,
                 passed=passed,
@@ -100,19 +99,20 @@ class ImprovementLoop:
         traces = from_gauntlet_result(data)
         return aggregate(traces)
 
-    def _reflect(
-        self,
-        suite: object,
-        by_id: dict[str, Scenario],
-        learned: set[str],
-    ) -> int:
-        """Reflect on up to ``lessons_per_iteration`` still-failing tasks."""
-        budget = self.lessons_per_iteration
+    def _reflect(self, suite: object, by_id: dict[str, Scenario]) -> int:
+        """Reflect on each still-failing task (optionally capped per cycle).
+
+        A still-failing task surfaces its *next* unmet blocker, so reflecting on
+        it again yields a new lesson and advances it one stage; once solved it
+        stops failing and is skipped. ``lessons_per_iteration`` caps how many
+        failures are digested per cycle (``None`` = all of them).
+        """
+        cap = self.lessons_per_iteration
         added = 0
         for tr in suite.task_results:  # gauntlet returns these sorted by task id
-            if budget <= 0:
+            if cap is not None and added >= cap:
                 break
-            if tr.task_id in learned or tr.num_passed == tr.k:
+            if tr.num_passed == tr.k:
                 continue
             fail_index = next((j for j, g in enumerate(tr.grades) if not g.passed), 0)
             lesson = self.reflector.reflect(
@@ -121,7 +121,5 @@ class ImprovementLoop:
                 tr.grades[fail_index],
             )
             self.memory.add(lesson)
-            learned.add(tr.task_id)
-            budget -= 1
             added += 1
         return added

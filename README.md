@@ -27,28 +27,34 @@ behavior.
 
 ## The money shot
 
-Run the built-in suite of six tasks — each rigged with a classic agent pitfall
-(deleting without confirmation, guessing a config key, acting before searching,
+Run the built-in suite of six tasks, each rigged with classic agent pitfalls —
+deleting without confirmation, guessing a config key, acting before searching,
 reading a path it never listed, guessing instead of asking, writing without
-reading current state). With empty memory the agent trips every one. Then watch
-it teach itself ([animation above](#anvil)):
+reading current state. Crucially the tasks differ in *difficulty*: some have one
+pitfall, some two or three, and each pitfall only surfaces once the previous one
+is fixed. With empty memory the agent trips them all. Then watch it teach itself
+([animation above](#anvil)):
 
 ```
 $ anvil demo
 
 Self-improvement curve — tasks solved per iteration:
 
-  iter 0  [························] 0/6  (  0%)   memory=2 (+2)   tokens=1800
-  iter 1  [████████················] 2/6  ( 33%)   memory=4 (+2)   tokens=1800
-  iter 2  [████████████████········] 4/6  ( 67%)   memory=6 (+2)   tokens=1950
-  iter 3  [████████████████████████] 6/6  (100%)   memory=6 (+0)   tokens=2250
+  iter 0  [························] 0/6  (  0%)   memory=6 (+6)    tokens=488
+  iter 1  [████████████············] 3/6  ( 50%)   memory=9 (+3)    tokens=7119
+  iter 2  [████████████████████····] 5/6  ( 83%)   memory=10 (+1)   tokens=10880
+  iter 3  [████████████████████████] 6/6  (100%)   memory=10 (+0)   tokens=11869
 
-Δ pass rate: 0% → 100% over 4 iterations, driven by 6 learned lessons.
+Δ pass rate: 0% → 100% over 4 iterations, driven by 10 learned lessons.
 ```
 
-Nothing here is faked to look good: the world, the tools, and the grading are all
-`gauntlet`'s real machinery. The only stand-in is the model itself (see
-[Honesty](#honesty-what-is-and-is-not-simulated)).
+The curve is uneven on purpose — and honestly so. The steps differ (`+3, +2, +1`)
+because the *tasks* differ: the easy ones fall in one iteration, the three-pitfall
+task takes three. Memory growth tapers as fewer failures remain to learn from, and
+token counts climb as the recalled lessons enlarge the context. Nothing is faked
+to look good: the world, the tools, and the grading are all `gauntlet`'s real
+machinery, and the numbers fall out of the mechanism. The only stand-in is the
+model itself (see [Honesty](#honesty-what-is-and-is-not-simulated)).
 
 ## Why this exists / what it demonstrates
 
