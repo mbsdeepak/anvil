@@ -4,6 +4,10 @@
 outcomes, remembers the lessons, and gets measurably better each iteration, in
 ~2k readable lines of Python.**
 
+![anvil demo — the self-improvement curve climbing from 0% to 100%](demo/anvil.gif)
+
+<sub>`anvil demo` teaching an agent to solve a six-task suite: the score climbs 0% → 100% as it learns. Recorded with [VHS](https://github.com/charmbracelet/vhs) (`vhs demo/anvil.tape`).</sub>
+
 `anvil` is the seventh plane of a from-scratch agent platform. The other six
 *run* an agent and *judge* it; `anvil` closes the loop so the agent improves
 itself. It is not a framework and not a training pipeline: it is a tight, legible
@@ -27,11 +31,7 @@ Run the built-in suite of six tasks — each rigged with a classic agent pitfall
 (deleting without confirmation, guessing a config key, acting before searching,
 reading a path it never listed, guessing instead of asking, writing without
 reading current state). With empty memory the agent trips every one. Then watch
-it teach itself:
-
-![anvil demo — the self-improvement curve climbing from 0% to 100%](demo/anvil.gif)
-
-<sub>Recorded with [VHS](https://github.com/charmbracelet/vhs) — regenerate with `vhs demo/anvil.tape`.</sub>
+it teach itself ([animation above](#anvil)):
 
 ```
 $ anvil demo
